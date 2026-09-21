@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Feliz Día de las Flores Amarillas 🌻✨</title>
+
+<!-- Three.js y OrbitControls -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+<style>
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body, html {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background-color: #010005;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    touch-action: none;
+}
+
+/* OVERLAY DE INICIO */
+#welcome-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: #010005;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    transition: opacity 0.6s ease, visibility 0.6s ease;
+}
+
+#welcome-overlay.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.start-btn-container {
+    text-align: center;
+    padding: 20px;
+}
+
+.start-btn-container p {
+    color: #ffe89e;
+    font-size: 22px;
+    font-family: system-ui, -apple-system, sans-serif;
+    margin-bottom: 20px;
+    text-shadow: 0 0 15px rgba(255, 216, 61, 0.8);
+    letter-spacing: 0.5px;
+}
+
+.flower-start-icon {
+    font-size: 45px;
+    filter: drop-shadow(0 0 15px #ffd83d);
+    animation: pulse 2s infinite ease-in-out;
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); filter: drop-shadow(0 0 12px #ffd83d); }
+    50% { transform: scale(1.2); filter: drop-shadow(0 0 25px #ffb300); }
+}
+
+/* CANVAS 3D */
+#galaxy-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    display: block;
+    cursor: grab;
+}
+
+#galaxy-canvas:active {
+    cursor: grabbing;
+}
+
+/* ENCABEZADO SUPERIOR */
+.top-header {
+    position: absolute;
+    top: 3%;
+    width: 100%;
+    text-align: center;
+    z-index: 10;
+    pointer-events: none;
+}
+
+.top-header h1 {
+    font-family: 'Dancing Script', cursive, Georgia, serif;
+    font-size: clamp(28px, 5.5vw, 56px);
+    color: #fff2a3;
+    text-shadow: 
+        0 0 10px #ffd83d,
+        0 0 25px #ffd83d,
+        0 0 40px #ff9d00;
+}
+
+/* BOTÓN DE MÚSICA */
+.music-btn {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 100;
+    background: rgba(255, 216, 61, 0.15);
+    border: 1px solid #ffd83d;
+    color: #ffd83d;
+    padding: 8px 16px;
+    border-radius: 50px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 0 15px rgba(255, 216, 61, 0.3);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.hint-text {
+    position: absolute;
+    bottom: 2%;
+    width: 100%;
+    text-align: center;
+    color: rgba(255, 232, 158, 0.6);
+    font-size: 12px;
+    z-index: 10;
+    pointer-events: none;
+}
+</style>
+
+<link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+
+<!-- PANTALLA DE INICIO DE INTERACCIÓN -->
+<div id="welcome-overlay">
+    <div class="start-btn-container">
+        <p>Toca en cualquier lugar para entrar a la galaxia 🌻✨</p>
+        <div class="flower-start-icon">✨🌻✨</div>
+    </div>
+</div>
+
+<!-- AUDIO -->
+<audio id="bg-music" loop preload="auto">
+    <source src="cancion.mp3" type="audio/mpeg">
+</audio>
+
+<!-- BOTÓN DE CONTROL DE MÚSICA -->
+<button class="music-btn" id="musicToggle" onclick="toggleMúsica()">
+    <span id="musicIcon">🎵</span> <span id="musicText">Música</span>
+</button>
+
+<!-- ENCABEZADO SUPERIOR -->
+<div class="top-header">
+    <h1>Feliz Día de las Flores Amarillas 🌻✨</h1>
+</div>
+
+<div class="hint-text">
+    👆 Arrastra para girar | 🤏 Rueda o pellizca para acercar/alejar
+</div>
+
+<canvas id="galaxy-canvas"></canvas>
+
+<script>
+// ==========================================
+// CONTROL DE INICIO Y MÚSICA
+// ==========================================
+const overlay = document.getElementById('welcome-overlay');
+const music = document.getElementById('bg-music');
+const musicIcon = document.getElementById('musicIcon');
+const musicText = document.getElementById('musicText');
+
+function iniciarExperiencia(e) {
+    if (e) e.preventDefault();
+    
+    // 1. Ocultar la pantalla de inicio
+    overlay.classList.add('hidden');
+
+    // 2. Iniciar música junto con la entrada a la galaxia
+    if (music) {
+        music.play().then(() => {
+            musicIcon.textContent = "🎶";
+            musicText.textContent = "Pausar";
+        }).catch((err) => {
+            console.log("Música no se pudo reproducir automáticamente:", err);
+            musicIcon.textContent = "🎵";
+            musicText.textContent = "Reproducir";
+        });
+    }
+}
+
+// Escuchar evento de toque o clic en la pantalla de inicio
+overlay.addEventListener('click', iniciarExperiencia);
+overlay.addEventListener('touchstart', iniciarExperiencia, { passive: false });
+
+function toggleMúsica() {
+    if (music.paused) {
+        music.play().then(() => {
+            musicIcon.textContent = "🎶";
+            musicText.textContent = "Pausar";
+        }).catch(() => {});
+    } else {
+        music.pause();
+        musicIcon.textContent = "🎵";
+        musicText.textContent = "Música";
+    }
+}
+
+// ==========================================
+// ESCENA Y CÁMARA THREE.JS
+// ==========================================
+const canvas = document.getElementById('galaxy-canvas');
+const scene = new THREE.Scene();
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+camera.position.set(0, 18, 42);
+
+const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.05;
+controls.rotateSpeed = 0.8;
+controls.zoomSpeed = 1.0;
+controls.minDistance = 10;
+controls.maxDistance = 85;
+
+const galaxyGroup = new THREE.Group();
+galaxyGroup.rotation.x = 0.45;
+scene.add(galaxyGroup);
+
+// ==========================================
+// TEXTURAS 2D REALISTAS
+// ==========================================
+
+// 1. GIRASOL REALISTA DETALLADO
+function drawRealisticSunflower() {
+    const c = document.createElement('canvas');
+    c.width = 512;
+    c.height = 512;
+    const ctx = c.getContext('2d');
+    const cx = 256, cy = 230;
+
+    // Tallo
+    ctx.strokeStyle = '#3e7821';
+    ctx.lineWidth = 14;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(cx, cy + 30);
+    ctx.quadraticCurveTo(cx - 15, cy + 120, cx, cy + 220);
+    ctx.stroke();
+
+    // Hojas
+    ctx.fillStyle = '#4c9127';
+    ctx.beginPath();
+    ctx.ellipse(cx + 35, cy + 120, 35, 16, Math.PI / 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.ellipse(cx - 35, cy + 150, 35, 16, -Math.PI / 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Pétalos trasera
+    const numPetalsBack = 22;
+    for (let i = 0; i < numPetalsBack; i++) {
+        const angle = (i / numPetalsBack) * Math.PI * 2;
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(angle);
+        
+        const grad = ctx.createLinearGradient(0, -20, 0, -115);
+        grad.addColorStop(0, '#e68a00');
+        grad.addColorStop(0.5, '#ffcc00');
+        grad.addColorStop(1, '#ffeb7a');
+
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.moveTo(0, -20);
+        ctx.bezierCurveTo(-22, -60, -16, -110, 0, -118);
+        ctx.bezierCurveTo(16, -110, 22, -60, 0, -20);
+        ctx.fill();
+        ctx.restore();
+    }
+
+    // Pétalos delantera
+    const numPetalsFront = 18;
+    for (let i = 0; i < numPetalsFront; i++) {
+        const angle = ((i + 0.5) / numPetalsFront) * Math.PI * 2;
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(angle);
+
+        const grad = ctx.createLinearGradient(0, -15, 0, -95);
+        grad.addColorStop(0, '#ff9900');
+        grad.addColorStop(0.6, '#ffd700');
+        grad.addColorStop(1, '#fff5b8');
+
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.moveTo(0, -15);
+        ctx.bezierCurveTo(-18, -50, -12, -90, 0, -98);
+        ctx.bezierCurveTo(12, -90, 18, -50, 0, -15);
+        ctx.fill();
+        ctx.restore();
+    }
+
+    // Centro
+    const centerGrad = ctx.createRadialGradient(cx, cy, 5, cx, cy, 52);
+    centerGrad.addColorStop(0, '#2b1704');
+    centerGrad.addColorStop(0.7, '#422509');
+    centerGrad.addColorStop(1, '#663c12');
+
+    ctx.fillStyle = centerGrad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 52, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Semillas
+    ctx.fillStyle = '#ffaa00';
+    for (let i = 0; i < 90; i++) {
+        const r = Math.sqrt(Math.random()) * 46;
+        const theta = Math.random() * Math.PI * 2;
+        ctx.beginPath();
+        ctx.arc(cx + r * Math.cos(theta), cy + r * Math.sin(theta), 1.6, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    return new THREE.CanvasTexture(c);
+}
+
+// 2. RAMO DE GIRASOLES MEJORADO Y REALISTA
+function drawRealisticBouquet() {
+    const c = document.createElement('canvas');
+    c.width = 512;
+    c.height = 512;
+    const ctx = c.getContext('2d');
+    const cx = 256, cy = 256;
+
+    // Papel Kraft de envoltorio
+    ctx.fillStyle = '#b88a52';
+    ctx.beginPath();
+    ctx.moveTo(cx, cy + 200);
+    ctx.lineTo(cx - 120, cy + 30);
+    ctx.lineTo(cx + 120, cy + 30);
+    ctx.closePath();
+    ctx.fill();
+
+    // Pliegues del papel
+    ctx.fillStyle = '#a1743e';
+    ctx.beginPath();
+    ctx.moveTo(cx, cy + 200);
+    ctx.lineTo(cx - 120, cy + 30);
+    ctx.lineTo(cx - 40, cy + 30);
+    ctx.closePath();
+    ctx.fill();
+
+    // Lazo rosado decorativo
+    ctx.fillStyle = '#ff6b8b';
+    ctx.beginPath();
+    ctx.ellipse(cx - 30, cy + 80, 25, 12, -Math.PI / 6, 0, Math.PI * 2);
+    ctx.ellipse(cx + 30, cy + 80, 25, 12, Math.PI / 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(cx, cy + 80, 10, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Función interna para dibujar minigirasoles dentro del ramo
+    function drawMiniSunflower(x, y, scale) {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.scale(scale, scale);
+
+        for (let i = 0; i < 16; i++) {
+            const angle = (i / 16) * Math.PI * 2;
+            ctx.save();
+            ctx.rotate(angle);
+            const grad = ctx.createLinearGradient(0, -10, 0, -45);
+            grad.addColorStop(0, '#e68a00');
+            grad.addColorStop(1, '#ffeb7a');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.ellipse(0, -25, 8, 22, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+
+        ctx.fillStyle = '#3d2008';
+        ctx.beginPath();
+        ctx.arc(0, 0, 18, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+    }
+
+    drawMiniSunflower(cx - 45, cy - 35, 1.0);
+    drawMiniSunflower(cx + 45, cy - 35, 1.0);
+    drawMiniSunflower(cx, cy - 75, 1.15);
+    drawMiniSunflower(cx - 75, cy - 80, 0.85);
+    drawMiniSunflower(cx + 75, cy - 80, 0.85);
+
+    return new THREE.CanvasTexture(c);
+}
+
+// 3. PÉTALO AMARILLO REALISTA
+function drawPetal() {
+    const c = document.createElement('canvas');
+    c.width = 128;
+    c.height = 128;
+    const ctx = c.getContext('2d');
+
+    const grad = ctx.createLinearGradient(64, 10, 64, 118);
+    grad.addColorStop(0, '#fff3a1');
+    grad.addColorStop(0.5, '#ffd700');
+    grad.addColorStop(1, '#e68a00');
+
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(64, 10);
+    ctx.bezierCurveTo(20, 40, 30, 90, 64, 118);
+    ctx.bezierCurveTo(98, 90, 108, 40, 64, 10);
+    ctx.fill();
+
+    return new THREE.CanvasTexture(c);
+}
+
+// 4. TEXTURA DE TEXTO
+function createTextTexture(text) {
+    const c = document.createElement('canvas');
+    c.width = 700;
+    c.height = 110;
+    const ctx = c.getContext('2d');
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = '#ffd83d';
+    ctx.shadowBlur = 14;
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'Bold 32px Arial, sans-serif';
+    ctx.fillText(text, 350, 55);
+
+    return new THREE.CanvasTexture(c);
+}
+
+// 5. TEXTURA REDONDA SUAVE PARA LAS PARTÍCULAS
+function createParticleTexture() {
+    const c = document.createElement('canvas');
+    c.width = 64;
+    c.height = 64;
+    const ctx = c.getContext('2d');
+
+    const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grad.addColorStop(0, 'rgba(255, 235, 120, 1)');
+    grad.addColorStop(0.4, 'rgba(255, 216, 61, 0.8)');
+    grad.addColorStop(1, 'rgba(255, 180, 0, 0)');
+
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(32, 32, 32, 0, Math.PI * 2);
+    ctx.fill();
+
+    return new THREE.CanvasTexture(c);
+}
+
+const texSunflower = drawRealisticSunflower();
+const texBouquet = drawRealisticBouquet();
+const texPetal = drawPetal();
+const texParticle = createParticleTexture();
+
+// FRASES CARIÑOSAS DE LA GALAXIA
+const frasesAmistad = [
+    "Gracias por quedarte siempre", "Tu risa le hace bien a mis días",
+    "Un girasol para quien ilumina todo", "Gracias por ser mi sol de siempre",
+    "Pétalos dorados solo para ti", "Qué lindo contar con tu amistad",
+    "Tu amistad vale oro", "Gracias por cada risa compartida",
+    "Una gran amiga como tú merece todo", "Simplemente la mejor amiga",
+    "Gracias por estar en las buenas y malas", "Alegres como las flores de septiembre",
+    "Un detalle especial para ti", "Siempre brillando con luz propia"
+];
+
+// DISTRIBUCIÓN DE ELEMENTOS EN LA GALAXIA
+const totalItems = 130;
+const radiusMin = 8;
+const radiusMax = 42;
+
+for (let i = 0; i < totalItems; i++) {
+    const angle = (i / totalItems) * Math.PI * 2 * 4.5;
+    const radius = radiusMin + Math.pow(i / totalItems, 0.85) * (radiusMax - radiusMin);
+
+    let spriteMaterial, scaleX, scaleY;
+    const typeRand = Math.random();
+
+    if (typeRand < 0.50) {
+        spriteMaterial = new THREE.SpriteMaterial({ map: texSunflower, transparent: true, opacity: 0.95 });
+        const sizeRand = Math.random();
+        let size = 4.0;
+        if (sizeRand > 0.65) size = 8.5;
+        else if (sizeRand > 0.3) size = 6.0;
+
+        scaleX = size; scaleY = size * 1.15;
+
+    } else if (typeRand < 0.70) {
+        spriteMaterial = new THREE.SpriteMaterial({ map: texBouquet, transparent: true, opacity: 0.95 });
+        scaleX = 8.0; scaleY = 8.0;
+
+    } else if (typeRand < 0.82) {
+        spriteMaterial = new THREE.SpriteMaterial({ map: texPetal, transparent: true, opacity: 0.85 });
+        scaleX = 2.4; scaleY = 2.4;
+
+    } else {
+        const textStr = frasesAmistad[i % frasesAmistad.length];
+        const texText = createTextTexture(textStr);
+        spriteMaterial = new THREE.SpriteMaterial({ map: texText, transparent: true, opacity: 0.9 });
+        scaleX = 11.0; scaleY = 2.0;
+    }
+
+    const sprite = new THREE.Sprite(spriteMaterial);
+    sprite.position.x = Math.cos(angle) * radius;
+    sprite.position.z = Math.sin(angle) * radius;
+    sprite.position.y = (Math.random() - 0.5) * 5;
+    sprite.scale.set(scaleX, scaleY, 1);
+
+    sprite.userData = {
+        angle: angle,
+        radius: radius,
+        yBase: sprite.position.y,
+        floatSpeed: 0.012 + Math.random() * 0.02
+    };
+
+    galaxyGroup.add(sprite);
+}
+
+// ==========================================
+// ESPIRAL DENSA DE PARTÍCULAS FINAS
+// ==========================================
+const spiralParticlesCount = 6000;
+const spiralGeo = new THREE.BufferGeometry();
+const spiralPos = new Float32Array(spiralParticlesCount * 3);
+
+for (let i = 0; i < spiralParticlesCount; i++) {
+    const progress = i / spiralParticlesCount;
+    const arm = (i % 2 === 0) ? 0 : Math.PI;
+    const angle = progress * Math.PI * 2 * 4.2 + arm;
+    const radius = Math.pow(progress, 0.75) * 38 + 0.5;
+    const y = -Math.pow(progress, 0.6) * 10 + (Math.random() - 0.5) * 1.2;
+
+    spiralPos[i * 3] = Math.cos(angle) * radius + (Math.random() - 0.5) * 0.7;
+    spiralPos[i * 3 + 1] = y;
+    spiralPos[i * 3 + 2] = Math.sin(angle) * radius + (Math.random() - 0.5) * 0.7;
+}
+
+spiralGeo.setAttribute('position', new THREE.BufferAttribute(spiralPos, 3));
+const spiralMat = new THREE.PointsMaterial({
+    map: texParticle,
+    size: 0.22,
+    transparent: true,
+    opacity: 0.85,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending
+});
+const spiralMesh = new THREE.Points(spiralGeo, spiralMat);
+galaxyGroup.add(spiralMesh);
+
+// ==========================================
+// FIGURA CENTRAL: CORAZÓN ➔ FLOR ➔ ESTRELLA
+// ==========================================
+const particleCount = 550;
+const heartTarget = new Float32Array(particleCount * 3);
+const flowerTarget = new Float32Array(particleCount * 3);
+const starTarget = new Float32Array(particleCount * 3);
+
+// 1. CORAZÓN
+for (let i = 0; i < particleCount; i++) {
+    const t = Math.PI * 2 * Math.random();
+    let hx = 16 * Math.pow(Math.sin(t), 3);
+    let hy = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
+    const f = 0.38;
+    heartTarget[i * 3] = hx * f;
+    heartTarget[i * 3 + 1] = hy * f + 2.5;
+    heartTarget[i * 3 + 2] = (Math.random() - 0.5) * 1.5;
+}
+
+// 2. FLOR / GIRASOL
+for (let i = 0; i < particleCount; i++) {
+    const rVal = Math.random();
+    let x, y;
+    if (rVal < 0.28) {
+        const a = Math.random() * Math.PI * 2;
+        const r = Math.random() * 1.6;
+        x = Math.cos(a) * r;
+        y = Math.sin(a) * r;
+    } else {
+        const petalAngle = Math.random() * Math.PI * 2;
+        const r = 1.6 + Math.abs(Math.sin(petalAngle * 4)) * 4.2;
+        x = Math.cos(petalAngle) * r;
+        y = Math.sin(petalAngle) * r;
+    }
+    flowerTarget[i * 3] = x;
+    flowerTarget[i * 3 + 1] = y + 2.5;
+    flowerTarget[i * 3 + 2] = (Math.random() - 0.5) * 1.5;
+}
+
+// 3. ESTRELLA
+for (let i = 0; i < particleCount; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const pts = 5;
+    const rOuter = 5.8;
+    const rInner = 2.4;
+    const aStep = Math.PI / pts;
+    const seg = Math.floor(angle / aStep);
+    const r = (seg % 2 === 0) ? rOuter : rInner;
+    
+    starTarget[i * 3] = Math.cos(angle) * r * (0.6 + Math.random() * 0.4);
+    starTarget[i * 3 + 1] = Math.sin(angle) * r * (0.6 + Math.random() * 0.4) + 2.5;
+    starTarget[i * 3 + 2] = (Math.random() - 0.5) * 1.5;
+}
+
+// Geometría central
+const shapeGeo = new THREE.BufferGeometry();
+const currentPositions = new Float32Array(particleCount * 3);
+for (let i = 0; i < particleCount * 3; i++) {
+    currentPositions[i] = heartTarget[i];
+}
+
+shapeGeo.setAttribute('position', new THREE.BufferAttribute(currentPositions, 3));
+const shapeMat = new THREE.PointsMaterial({
+    map: texParticle,
+    size: 0.45,
+    transparent: true,
+    opacity: 0.95,
+    blending: THREE.AdditiveBlending
+});
+const morphingShape = new THREE.Points(shapeGeo, shapeMat);
+galaxyGroup.add(morphingShape);
+
+// ==========================================
+// ANIMACIÓN Y ROTACIÓN
+// ==========================================
+let clockTime = 0;
+let currentShapeIndex = 0;
+const targets = [heartTarget, flowerTarget, starTarget];
+
+setInterval(() => {
+    currentShapeIndex = (currentShapeIndex + 1) % targets.length;
+}, 4500);
+
+function animate() {
+    requestAnimationFrame(animate);
+    clockTime += 0.02;
+
+    controls.update();
+
+    galaxyGroup.rotation.y += 0.0025;
+    spiralMesh.rotation.y += 0.001;
+
+    const activeTarget = targets[currentShapeIndex];
+    const positions = shapeGeo.attributes.position.array;
+
+    for (let i = 0; i < particleCount * 3; i++) {
+        positions[i] += (activeTarget[i] - positions[i]) * 0.04;
+    }
+    shapeGeo.attributes.position.needsUpdate = true;
+
+    galaxyGroup.children.forEach(child => {
+        if (child.isSprite && child.userData) {
+            child.position.y = child.userData.yBase + Math.sin(clockTime * child.userData.floatSpeed + child.userData.angle) * 0.8;
